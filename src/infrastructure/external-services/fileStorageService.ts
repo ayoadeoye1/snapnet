@@ -113,7 +113,6 @@ class FileStorageService {
     await this.initialize();
 
     try {
-      // Generate optimized URL
       const optimizedUrl = cloudinary.url(publicId, {
         fetch_format: "auto",
         quality: "auto",
@@ -166,7 +165,6 @@ class FileStorageService {
     await this.initialize();
 
     try {
-      // Get account usage information
       const usage = await cloudinary.api.usage();
       return {
         service: "cloudinary",
