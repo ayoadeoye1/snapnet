@@ -89,40 +89,5 @@ export class DocumentController {
     }
   }
 
-  async deleteDocument(
-    req: AuthenticatedRequest,
-    res: Response
-  ): Promise<void> {
-    try {
-      const { error, value } = documentIdSchema.validate(req.params);
-      if (error) {
-        res.status(400).json({
-          success: false,
-          message: "Invalid document ID",
-        });
-        return;
-      }
 
-      await this.documentUseCase.deleteDocument(value.id, req.userId!);
-
-      res.status(200).json({
-        success: true,
-        message: "Document deleted successfully",
-      });
-    } catch (error: any) {
-      console.error("Delete document controller error:", error);
-
-      if (error.message === "Document not found") {
-        res.status(404).json({
-          success: false,
-          message: error.message,
-        });
-      } else {
-        res.status(500).json({
-          success: false,
-          message: "Internal server error",
-        });
-      }
-    }
-  }
 }

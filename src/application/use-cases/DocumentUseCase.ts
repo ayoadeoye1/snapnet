@@ -122,30 +122,6 @@ export class DocumentUseCase {
     }
   }
 
-  async deleteDocument(documentId: string, userId: string): Promise<void> {
-    try {
-      const document = await Document.findOne({
-        where: { id: documentId, userId },
-      });
-
-      if (!document) {
-        throw new Error("Document not found");
-      }
-
-      // Delete file from Cloudinary using stored public ID
-      if (document.cloudinaryPublicId) {
-        await fileStorageService.deleteFile(document.cloudinaryPublicId);
-      }
-      await document.destroy();
-
-      const cacheKey = `document:${documentId}`;
-      await redisService.delete(cacheKey);
-    } catch (error) {
-      console.error("Delete document error:", error);
-      throw error;
-    }
-  }
-
   async getAllDocuments(
     options: DocumentListOptions = {}
   ): Promise<{ documents: Document[]; total: number; totalPages: number }> {

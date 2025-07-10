@@ -92,23 +92,6 @@ class FileStorageService {
     }
   }
 
-  async deleteFile(publicId: string): Promise<void> {
-    await this.initialize();
-
-    try {
-      const result = await cloudinary.uploader.destroy(publicId);
-
-      if (result.result === "ok") {
-        console.log(`File deleted from Cloudinary: ${publicId}`);
-      } else {
-        console.warn(`File deletion result: ${result.result} for ${publicId}`);
-      }
-    } catch (error) {
-      console.error("Failed to delete file from Cloudinary:", error);
-      throw new Error(`File deletion failed: ${error}`);
-    }
-  }
-
   async getFileUrl(publicId: string, options?: any): Promise<string> {
     await this.initialize();
 

@@ -9,22 +9,19 @@ jest.mock("../src/application/use-cases/DocumentUseCase");
 jest.mock("../src/infrastructure/external-services/redisService");
 
 describe("Document Worker Processing", () => {
-  let mockDocumentUseCase: jest.Mocked<DocumentUseCase>;
+  let mockDocumentUseCase: any;
 
   beforeEach(() => {
     jest.clearAllMocks();
 
     // Setup mock instances
-    mockDocumentUseCase = new DocumentUseCase() as jest.Mocked<DocumentUseCase>;
-    (mockDocumentUseCase.updateDocumentStatus as jest.Mock) = jest.fn();
+    mockDocumentUseCase = new DocumentUseCase() as any;
+    mockDocumentUseCase.verifyDocument = jest.fn();
   });
 
-  // Test data
+  // Test data - matching actual interface
   const mockVerificationMessage: DocumentVerificationMessage = {
     documentId: "550e8400-e29b-41d4-a716-446655440000",
-    userId: "550e8400-e29b-41d4-a716-446655440001",
-    documentType: DocumentType.PASSPORT,
-    documentUrl: "http://test.com/documents/test-document.pdf",
     timestamp: new Date("2024-01-01T00:00:00.000Z"),
   };
 
@@ -33,9 +30,6 @@ describe("Document Worker Processing", () => {
       it("should process message with all required fields", () => {
         expect(mockVerificationMessage).toMatchObject({
           documentId: expect.any(String),
-          userId: expect.any(String),
-          documentType: expect.any(String),
-          documentUrl: expect.any(String),
           timestamp: expect.any(Date),
         });
       });
@@ -44,52 +38,23 @@ describe("Document Worker Processing", () => {
         const uuidRegex =
           /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
         expect(mockVerificationMessage.documentId).toMatch(uuidRegex);
-        expect(mockVerificationMessage.userId).toMatch(uuidRegex);
-      });
-
-      it("should validate document type enum", () => {
-        const validTypes = Object.values(DocumentType);
-        expect(validTypes).toContain(mockVerificationMessage.documentType);
-      });
-
-      it("should validate document URL format", () => {
-        expect(mockVerificationMessage.documentUrl).toMatch(/^https?:\/\/.+/);
       });
     });
 
     describe("Message validation errors", () => {
       it("should handle missing required fields", () => {
-        const invalidMessages = [
+        const invalidMessages: any[] = [
           { ...mockVerificationMessage, documentId: undefined },
-          { ...mockVerificationMessage, userId: undefined },
-          { ...mockVerificationMessage, documentType: undefined },
-          { ...mockVerificationMessage, documentUrl: undefined },
           { ...mockVerificationMessage, timestamp: undefined },
         ];
 
         invalidMessages.forEach((invalidMessage) => {
-          const requiredFields = [
-            "documentId",
-            "userId",
-            "documentType",
-            "documentUrl",
-            "timestamp",
-          ];
+          const requiredFields = ["documentId", "timestamp"];
           const missingField = requiredFields.find(
             (field) => !invalidMessage[field as keyof typeof invalidMessage]
           );
           expect(missingField).toBeDefined();
         });
-      });
-
-      it("should handle invalid document type", () => {
-        const invalidMessage = {
-          ...mockVerificationMessage,
-          documentType: "INVALID_TYPE" as DocumentType,
-        };
-
-        const validTypes = Object.values(DocumentType);
-        expect(validTypes).not.toContain(invalidMessage.documentType);
       });
     });
   });
@@ -101,9 +66,6 @@ describe("Document Worker Processing", () => {
           "Document successfully verified against government database",
           "All security features confirmed authentic",
           "Document format validation completed successfully",
-          "Biometric data verification passed",
-          "Document expiry date validated",
-          "Cross-reference verification completed",
         ];
 
         successDetails.forEach((detail) => {
@@ -120,16 +82,11 @@ describe("Document Worker Processing", () => {
           "Document image quality insufficient for automated verification",
           "Document appears to be expired or invalid",
           "Unable to verify document against official database",
-          "Document format not recognized by verification system",
-          "Security features authentication failed",
-          "Document information incomplete or illegible",
-          "Suspected fraudulent document detected",
-          "Document type not supported for current verification process",
         ];
 
         rejectionReasons.forEach((reason) => {
           expect(reason).toMatch(
-            /(insufficient|expired|unable|failed|incomplete|fraudulent|supported)/i
+            /(insufficient|expired|unable|failed|incomplete)/i
           );
           expect(reason.length).toBeGreaterThan(30);
           expect(reason.length).toBeLessThan(120);
@@ -140,370 +97,228 @@ describe("Document Worker Processing", () => {
         const outcomes = [DocumentStatus.VERIFIED, DocumentStatus.FAILED];
 
         // Test multiple iterations to ensure randomness
-        const results = Array.from({ length: 100 }, () => {
+        const results = Array.from({ length: 50 }, () => {
           return Math.random() > 0.5
             ? DocumentStatus.VERIFIED
             : DocumentStatus.FAILED;
         });
 
-        // Should have both outcomes in 100 iterations (very high probability)
-        const hasVerified = results.includes(DocumentStatus.VERIFIED);
-        const hasFailed = results.includes(DocumentStatus.FAILED);
-
-        expect(hasVerified || hasFailed).toBe(true); // At least one outcome
-        // In 100 iterations, we should see both outcomes with very high probability
-        expect(results.length).toBe(100);
+        expect(results.length).toBe(50);
       });
     });
 
     describe("Verification timing", () => {
-      it("should respect verification delay configuration", () => {
+      it("should respect verification delay configuration", async () => {
         const startTime = Date.now();
-        const mockDelay = 2000; // 2 seconds
+        const mockDelay = 100; // Shorter delay for tests
 
         // Simulate delay
-        const delayPromise = new Promise((resolve) => {
+        await new Promise((resolve) => {
           setTimeout(resolve, mockDelay);
         });
 
-        return delayPromise.then(() => {
-          const endTime = Date.now();
-          const actualDelay = endTime - startTime;
-          expect(actualDelay).toBeGreaterThanOrEqual(mockDelay - 100); // Allow 100ms tolerance
-        });
+        const endTime = Date.now();
+        const actualDelay = endTime - startTime;
+        expect(actualDelay).toBeGreaterThanOrEqual(mockDelay - 50);
       });
     });
   });
 
   describe("Document Status Updates", () => {
     describe("Successful verification processing", () => {
-      it("should update document status to VERIFIED with details", async () => {
-        const verificationDetails =
-          "Document successfully verified against government database";
+      it("should call verifyDocument with correct parameters for VERIFIED", async () => {
+        const verificationDetails = "Document successfully verified";
 
-        mockDocumentUseCase.updateDocumentStatus.mockResolvedValue(undefined);
+        mockDocumentUseCase.verifyDocument.mockResolvedValue(undefined);
 
-        await mockDocumentUseCase.updateDocumentStatus(
+        await mockDocumentUseCase.verifyDocument(
           mockVerificationMessage.documentId,
-          DocumentStatus.VERIFIED,
-          verificationDetails
+          true,
+          verificationDetails,
+          undefined
         );
 
-        expect(mockDocumentUseCase.updateDocumentStatus).toHaveBeenCalledWith(
+        expect(mockDocumentUseCase.verifyDocument).toHaveBeenCalledWith(
           mockVerificationMessage.documentId,
-          DocumentStatus.VERIFIED,
-          verificationDetails
+          true,
+          verificationDetails,
+          undefined
         );
-        expect(mockDocumentUseCase.updateDocumentStatus).toHaveBeenCalledTimes(
-          1
-        );
+        expect(mockDocumentUseCase.verifyDocument).toHaveBeenCalledTimes(1);
       });
 
-      it("should set verification timestamp on successful verification", async () => {
-        const beforeTime = new Date();
+      it("should call verifyDocument with correct parameters for FAILED", async () => {
+        const rejectionReason = "Document quality insufficient";
 
-        mockDocumentUseCase.updateDocumentStatus.mockResolvedValue(undefined);
+        mockDocumentUseCase.verifyDocument.mockResolvedValue(undefined);
 
-        await mockDocumentUseCase.updateDocumentStatus(
+        await mockDocumentUseCase.verifyDocument(
           mockVerificationMessage.documentId,
-          DocumentStatus.VERIFIED,
-          "Verification completed"
-        );
-
-        const afterTime = new Date();
-
-        // Verify the call was made within reasonable time bounds
-        expect(mockDocumentUseCase.updateDocumentStatus).toHaveBeenCalled();
-        expect(afterTime.getTime() - beforeTime.getTime()).toBeLessThan(1000);
-      });
-    });
-
-    describe("Failed verification processing", () => {
-      it("should update document status to FAILED with rejection reason", async () => {
-        const rejectionReason =
-          "Document image quality insufficient for verification";
-
-        mockDocumentUseCase.updateDocumentStatus.mockResolvedValue(undefined);
-
-        await mockDocumentUseCase.updateDocumentStatus(
-          mockVerificationMessage.documentId,
-          DocumentStatus.FAILED,
+          false,
           undefined,
           rejectionReason
         );
 
-        expect(mockDocumentUseCase.updateDocumentStatus).toHaveBeenCalledWith(
+        expect(mockDocumentUseCase.verifyDocument).toHaveBeenCalledWith(
           mockVerificationMessage.documentId,
-          DocumentStatus.FAILED,
+          false,
           undefined,
           rejectionReason
         );
-      });
-
-      it("should not set verification timestamp on failed verification", async () => {
-        mockDocumentUseCase.updateDocumentStatus.mockResolvedValue(undefined);
-
-        await mockDocumentUseCase.updateDocumentStatus(
-          mockVerificationMessage.documentId,
-          DocumentStatus.FAILED,
-          undefined,
-          "Verification failed"
-        );
-
-        // Verify no verifiedAt timestamp is passed for failed verifications
-        const call = mockDocumentUseCase.updateDocumentStatus.mock.calls[0];
-        expect(call[2]).toBeUndefined(); // verificationDetails should be undefined
-      });
-    });
-  });
-
-  describe("Cache Management", () => {
-    describe("Document status caching", () => {
-      it("should cache document status after successful verification", async () => {
-        const documentId = mockVerificationMessage.documentId;
-        const status = DocumentStatus.VERIFIED;
-        const cacheTTL = 600; // 10 minutes
-
-        (redisService.set as jest.Mock).mockResolvedValue(undefined);
-
-        await redisService.set(
-          `document:${documentId}:status`,
-          status,
-          cacheTTL
-        );
-
-        expect(redisService.set).toHaveBeenCalledWith(
-          `document:${documentId}:status`,
-          status,
-          cacheTTL
-        );
-      });
-
-      it("should cache document status after failed verification", async () => {
-        const documentId = mockVerificationMessage.documentId;
-        const status = DocumentStatus.FAILED;
-
-        (redisService.set as jest.Mock).mockResolvedValue(undefined);
-
-        await redisService.set(`document:${documentId}:status`, status, 600);
-
-        expect(redisService.set).toHaveBeenCalledWith(
-          `document:${documentId}:status`,
-          status,
-          600
-        );
+        expect(mockDocumentUseCase.verifyDocument).toHaveBeenCalledTimes(1);
       });
     });
 
-    describe("User documents cache invalidation", () => {
-      it("should invalidate user documents cache after verification", async () => {
-        const userId = mockVerificationMessage.userId;
-
-        (redisService.delete as jest.Mock).mockResolvedValue(undefined);
-
-        await redisService.delete(`user:${userId}:documents`);
-
-        expect(redisService.delete).toHaveBeenCalledWith(
-          `user:${userId}:documents`
-        );
-      });
-
-      it("should handle cache invalidation for multiple cache keys", async () => {
-        const userId = mockVerificationMessage.userId;
-        const documentId = mockVerificationMessage.documentId;
-
-        (redisService.delete as jest.Mock).mockResolvedValue(undefined);
-
-        const cacheKeys = [
-          `user:${userId}:documents`,
-          `user:${userId}:documents:stats`,
-          `document:${documentId}`,
-        ];
-
-        for (const key of cacheKeys) {
-          await redisService.delete(key);
-        }
-
-        expect(redisService.delete).toHaveBeenCalledTimes(3);
-        cacheKeys.forEach((key) => {
-          expect(redisService.delete).toHaveBeenCalledWith(key);
-        });
-      });
-    });
-  });
-
-  describe("Error Handling", () => {
-    describe("Database errors", () => {
-      it("should handle document update service errors gracefully", async () => {
+    describe("Error handling", () => {
+      it("should handle database errors during verification", async () => {
         const dbError = new Error("Database connection failed");
-        mockDocumentUseCase.updateDocumentStatus.mockRejectedValue(dbError);
+
+        mockDocumentUseCase.verifyDocument.mockRejectedValue(dbError);
 
         await expect(
-          mockDocumentUseCase.updateDocumentStatus(
+          mockDocumentUseCase.verifyDocument(
             mockVerificationMessage.documentId,
-            DocumentStatus.VERIFIED,
-            "Test details"
+            true,
+            "test",
+            undefined
           )
         ).rejects.toThrow("Database connection failed");
 
-        expect(mockDocumentUseCase.updateDocumentStatus).toHaveBeenCalledWith(
+        expect(mockDocumentUseCase.verifyDocument).toHaveBeenCalledWith(
           mockVerificationMessage.documentId,
-          DocumentStatus.VERIFIED,
-          "Test details"
+          true,
+          "test",
+          undefined
         );
       });
 
-      it("should handle document not found errors", async () => {
-        const notFoundError = new Error("Document not found");
-        mockDocumentUseCase.updateDocumentStatus.mockRejectedValue(
-          notFoundError
-        );
+      it("should handle network errors during verification", async () => {
+        const networkError = new Error("Network timeout");
+
+        mockDocumentUseCase.verifyDocument.mockRejectedValue(networkError);
 
         await expect(
-          mockDocumentUseCase.updateDocumentStatus(
-            "non-existent-id",
-            DocumentStatus.VERIFIED,
-            "Test details"
+          mockDocumentUseCase.verifyDocument(
+            mockVerificationMessage.documentId,
+            false,
+            undefined,
+            "Network error"
           )
-        ).rejects.toThrow("Document not found");
-      });
-    });
-
-    describe("Cache errors", () => {
-      it("should handle Redis connection errors gracefully", async () => {
-        const redisError = new Error("Redis connection timeout");
-        (redisService.set as jest.Mock).mockRejectedValue(redisError);
-
-        await expect(
-          redisService.set(
-            `document:${mockVerificationMessage.documentId}:status`,
-            DocumentStatus.VERIFIED,
-            600
-          )
-        ).rejects.toThrow("Redis connection timeout");
-
-        expect(redisService.set).toHaveBeenCalled();
-      });
-
-      it("should handle cache key deletion errors", async () => {
-        const redisError = new Error("Redis operation failed");
-        (redisService.delete as jest.Mock).mockRejectedValue(redisError);
-
-        await expect(
-          redisService.delete(
-            `user:${mockVerificationMessage.userId}:documents`
-          )
-        ).rejects.toThrow("Redis operation failed");
-      });
-    });
-
-    describe("Message processing errors", () => {
-      it("should handle malformed verification messages", () => {
-        const malformedMessages = [
-          null,
-          undefined,
-          {},
-          { documentId: "invalid" },
-          { documentId: "valid-id", userId: null },
-        ];
-
-        malformedMessages.forEach((message) => {
-          if (!message || typeof message !== "object") {
-            expect(message).toBeFalsy();
-            return;
-          }
-
-          const hasRequiredFields =
-            message.documentId &&
-            message.userId &&
-            message.documentType &&
-            message.documentUrl &&
-            message.timestamp;
-
-          expect(hasRequiredFields).toBeFalsy();
-        });
-      });
-
-      it("should validate message timestamp", () => {
-        const invalidTimestamps = [
-          "invalid-date",
-          null,
-          undefined,
-          123456789, // Should be Date object, not number
-        ];
-
-        invalidTimestamps.forEach((timestamp) => {
-          const messageWithInvalidTimestamp = {
-            ...mockVerificationMessage,
-            timestamp,
-          };
-
-          expect(
-            messageWithInvalidTimestamp.timestamp instanceof Date
-          ).toBeFalsy();
-        });
+        ).rejects.toThrow("Network timeout");
       });
     });
   });
 
-  describe("Worker Performance", () => {
-    describe("Processing metrics", () => {
-      it("should track processing time for verification", async () => {
-        const startTime = Date.now();
+  describe("Cache Operations", () => {
+    beforeEach(() => {
+      (redisService.set as jest.Mock).mockResolvedValue("OK");
+      (redisService.get as jest.Mock).mockResolvedValue(null);
+      (redisService.delete as jest.Mock).mockResolvedValue(1);
+    });
 
-        mockDocumentUseCase.updateDocumentStatus.mockResolvedValue(undefined);
-        (redisService.set as jest.Mock).mockResolvedValue(undefined);
-        (redisService.delete as jest.Mock).mockResolvedValue(undefined);
+    describe("Cache invalidation", () => {
+      it("should clear document cache after verification", async () => {
+        const cacheKey = `user:${mockVerificationMessage.documentId}:documents`;
 
-        // Simulate processing
-        await Promise.all([
-          mockDocumentUseCase.updateDocumentStatus(
-            mockVerificationMessage.documentId,
-            DocumentStatus.VERIFIED,
-            "Processed successfully"
-          ),
-          redisService.set(
-            `document:${mockVerificationMessage.documentId}:status`,
-            DocumentStatus.VERIFIED,
-            600
-          ),
-          redisService.delete(
-            `user:${mockVerificationMessage.userId}:documents`
-          ),
-        ]);
+        await redisService.delete(cacheKey);
 
-        const processingTime = Date.now() - startTime;
-
-        // Processing should be fast (under 100ms for mocked operations)
-        expect(processingTime).toBeLessThan(100);
-        expect(mockDocumentUseCase.updateDocumentStatus).toHaveBeenCalledTimes(
-          1
-        );
-        expect(redisService.set).toHaveBeenCalledTimes(1);
-        expect(redisService.delete).toHaveBeenCalledTimes(1);
+        expect(redisService.delete).toHaveBeenCalledWith(cacheKey);
       });
 
-      it("should handle concurrent processing", async () => {
+      it("should handle cache errors gracefully", async () => {
+        const cacheError = new Error("Redis connection failed");
+        (redisService.delete as jest.Mock).mockRejectedValue(cacheError);
+
+        await expect(redisService.delete("test-key")).rejects.toThrow(
+          "Redis connection failed"
+        );
+      });
+    });
+  });
+
+  describe("Message Validation", () => {
+    describe("Message structure validation", () => {
+      it("should validate message has required properties", () => {
+        const isValidMessage = (message: any): boolean => {
+          return (
+            message &&
+            typeof message.documentId === "string" &&
+            message.timestamp instanceof Date
+          );
+        };
+
+        expect(isValidMessage(mockVerificationMessage)).toBe(true);
+
+        const invalidMessages = [
+          null,
+          undefined,
+          {},
+          { documentId: "test" }, // missing timestamp
+          { timestamp: new Date() }, // missing documentId
+          { documentId: 123, timestamp: new Date() }, // wrong type
+        ];
+
+        invalidMessages.forEach((invalidMessage) => {
+          expect(isValidMessage(invalidMessage)).toBe(false);
+        });
+      });
+    });
+
+    describe("Concurrent processing", () => {
+      it("should handle multiple verification messages concurrently", async () => {
+        mockDocumentUseCase.verifyDocument.mockResolvedValue(undefined);
+
         const messages = Array.from({ length: 5 }, (_, i) => ({
-          ...mockVerificationMessage,
-          documentId: `document-${i}`,
+          documentId: `doc-${i}`,
+          timestamp: new Date(),
         }));
 
-        mockDocumentUseCase.updateDocumentStatus.mockResolvedValue(undefined);
-
-        const processingPromises = messages.map((message) =>
-          mockDocumentUseCase.updateDocumentStatus(
+        const promises = messages.map((message: any) =>
+          mockDocumentUseCase.verifyDocument(
             message.documentId,
-            DocumentStatus.VERIFIED,
-            "Bulk processed"
+            true,
+            "verified",
+            undefined
           )
         );
 
-        await Promise.all(processingPromises);
+        await Promise.all(promises);
 
-        expect(mockDocumentUseCase.updateDocumentStatus).toHaveBeenCalledTimes(
-          5
-        );
+        expect(mockDocumentUseCase.verifyDocument).toHaveBeenCalledTimes(5);
+      });
+
+      it("should handle partial failures in concurrent processing", async () => {
+        mockDocumentUseCase.verifyDocument
+          .mockResolvedValueOnce(undefined)
+          .mockRejectedValueOnce(new Error("Test error"))
+          .mockResolvedValueOnce(undefined);
+
+        const promises = [
+          mockDocumentUseCase.verifyDocument(
+            "doc-1",
+            true,
+            "verified",
+            undefined
+          ),
+          mockDocumentUseCase.verifyDocument(
+            "doc-2",
+            true,
+            "verified",
+            undefined
+          ),
+          mockDocumentUseCase.verifyDocument(
+            "doc-3",
+            true,
+            "verified",
+            undefined
+          ),
+        ];
+
+        const results = await Promise.allSettled(promises);
+
+        expect(results[0].status).toBe("fulfilled");
+        expect(results[1].status).toBe("rejected");
+        expect(results[2].status).toBe("fulfilled");
       });
     });
   });

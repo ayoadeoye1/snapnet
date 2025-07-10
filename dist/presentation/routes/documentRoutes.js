@@ -1,21 +1,15 @@
-import { Router } from "express";
-import { DocumentController } from "../controllers/documentController";
-import { DocumentUseCase } from "../../application/use-cases/DocumentUseCase";
-import { authenticateToken, requireUserOnly } from "../middleware/auth";
-import {
-  uploadSingle,
-  handleUploadError,
-  validateUploadedFile,
-} from "../middleware/upload";
-
-const documentUseCase = new DocumentUseCase();
-const documentController = new DocumentController(documentUseCase);
-
-const router = Router();
-
-router.use(authenticateToken);
-router.use(requireUserOnly);
-
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const documentController_1 = require("../controllers/documentController");
+const DocumentUseCase_1 = require("../../application/use-cases/DocumentUseCase");
+const auth_1 = require("../middleware/auth");
+const upload_1 = require("../middleware/upload");
+const documentUseCase = new DocumentUseCase_1.DocumentUseCase();
+const documentController = new documentController_1.DocumentController(documentUseCase);
+const router = (0, express_1.Router)();
+router.use(auth_1.authenticateToken);
+router.use(auth_1.requireUserOnly);
 /**
  * @swagger
  * /documents:
@@ -67,14 +61,7 @@ router.use(requireUserOnly);
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.post(
-  "/",
-  uploadSingle,
-  handleUploadError,
-  validateUploadedFile,
-  documentController.uploadDocument.bind(documentController)
-);
-
+router.post("/", upload_1.uploadSingle, upload_1.handleUploadError, upload_1.validateUploadedFile, documentController.uploadDocument.bind(documentController));
 /**
  * @swagger
  * /documents:
@@ -136,5 +123,4 @@ router.post(
  *               $ref: '#/components/schemas/Error'
  */
 router.get("/", documentController.getUserDocuments.bind(documentController));
-
-export default router;
+exports.default = router;

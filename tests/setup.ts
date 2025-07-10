@@ -104,7 +104,6 @@ jest.mock("../src/infrastructure/external-services/fileStorageService", () => ({
       fileSize: 1024,
       cloudinaryPublicId: "test-public-id",
     }),
-    deleteFile: jest.fn(),
   },
 }));
 
