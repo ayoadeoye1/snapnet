@@ -1,0 +1,84 @@
+version: "3.8"
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: snapnet_mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: snapnet_db
+      MYSQL_USER: snapnet_user
+      MYSQL_PASSWORD: snapnet_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./init-db:/docker-entrypoint-initdb.d
+    networks:
+      - snapnet_network
+
+  redis:
+    image: redis:6-alpine
+    container_name: snapnet_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - snapnet_network
+
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: snapnet_rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: password
+    ports:
+      - "5672:5672" # AMQP port
+      - "15672:15672" # Management UI
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - snapnet_network
+
+  minio:
+    image: minio/minio:latest
+    container_name: snapnet_minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    ports:
+      - "9000:9000" # S3 API
+      - "9001:9001" # MinIO Console
+    volumes:
+      - minio_data:/data
+    networks:
+      - snapnet_network
+
+  # MinIO client for bucket creation
+  minio-client:
+    image: minio/mc:latest
+    container_name: snapnet_minio_client
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      sleep 10;
+      /usr/bin/mc config host add myminio http://minio:9000 minioadmin minioadmin123;
+      /usr/bin/mc mb myminio/documents;
+      /usr/bin/mc policy set public myminio/documents;
+      exit 0;
+      "
+    networks:
+      - snapnet_network
+
+volumes:
+  mysql_data:
+  redis_data:
+  rabbitmq_data:
+  minio_data:
+
+networks:
+  snapnet_network:
+    driver: bridge

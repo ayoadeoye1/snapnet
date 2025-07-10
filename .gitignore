@@ -1,0 +1,13 @@
+
+.env
+
+.idea
+
+.vscode
+
+node_modules
+
+.DS_Store
+
+.instructions0.txt
+.instructions.txt
